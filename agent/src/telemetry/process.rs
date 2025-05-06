@@ -1,5 +1,6 @@
 use sysinfo::{Pid, ProcessExt, System, SystemExt};
 
+#[derive(Debug)]
 pub struct ProcessInfo{
     pub pid: Pid,
     pub name: String,
