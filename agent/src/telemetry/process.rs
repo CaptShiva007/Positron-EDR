@@ -44,6 +44,15 @@ pub fn get_running_process() -> Vec<ProcessInfo> {
 }
 
 //unix get_process_user
+#[cfg(target_family = "unix")]
+fn get_process_user(proc: &sysinfo::Process) -> String {
+    match proc.user_id() {
+        Some(uid) => get_user_by_uid(uid)
+            .map(|u| u.name().to_string_lossy().into_owned())
+            .unwrap_or_else(|| "Unknown".to_string()),
+        None => "Unknown".to_string(),
+    }
+}
 
 #[cfg(windows)]
 fn get_process_user(proc: &sysinfo::Process) -> String {

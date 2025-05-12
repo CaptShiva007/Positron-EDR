@@ -29,6 +29,12 @@ fn is_hidden(path: &Path) -> bool {
 }
 
 //is_hidden for unix
+#[cfg(target_family = "unix")]
+fn is_hidden(path: &Path) -> bool {
+    path.file_name()
+        .map(|name| name.to_string_lossy().starts_with("."))
+        .unwrap_or(false)
+}
 
 #[cfg(target_family = "windows")]
 fn is_executable_file(path: &Path) -> bool {
@@ -39,6 +45,17 @@ fn is_executable_file(path: &Path) -> bool {
 }
 
 //is_executable_file for unix
+#[cfg(target_family = "unix")]
+fn is_executable_file(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    if let Ok(metadata) = fs::metadata(path) {
+        let permissions = metadata.permissions();
+        (permissions.mode() & 0o111) != 0
+    } else {
+        false
+    }
+}
+
 fn compute_sha256(path: &Path) -> Option<String> {
     let data = fs::read(path).ok()?;
     let mut hasher = Sha256::new();
