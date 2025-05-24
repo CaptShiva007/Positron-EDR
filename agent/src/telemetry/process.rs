@@ -4,7 +4,7 @@ use std::io::Read;
 use sha2::{Sha256, Digest};
 
 #[cfg(target_family = "unix")]
-use users::{get_user_by_uid};
+use users::get_user_by_uid;
 
 #[cfg(target_family = "windows")]
 use windows::{

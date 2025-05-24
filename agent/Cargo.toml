@@ -20,3 +20,4 @@ windows = { version = "0.52", features = [
     "Win32_Security"
 ] }
 winreg = "0.10"
+yara = "0.14"
