@@ -1,4 +1,5 @@
 use std::fs::{self, Metadata};
+use std::io::Read;
 use std::{io, path};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, Duration};
@@ -13,6 +14,7 @@ pub struct FileInfo {
     pub last_modified: Option<SystemTime>,
     pub size: u64,
     pub sha256: Option<String>,
+    pub entropy: Option<f64>,
 }
 
 #[cfg(target_family = "windows")]
@@ -38,10 +40,10 @@ fn is_hidden(path: &Path) -> bool {
 
 #[cfg(target_family = "windows")]
 fn is_executable_file(path: &Path) -> bool {
-    match path.extension().and_then(|ext| ext.to_str()) {
-        Some("exe") | Some("bat") | Some("ps1") | Some("dll") => true,
-        _ => false
-    }
+    matches!(
+        path.extension().and_then(|ext| ext.to_str()),
+        Some("exe") | Some("bat") | Some("ps1") | Some("dll")
+    )
 }
 
 //is_executable_file for unix
@@ -61,6 +63,29 @@ fn compute_sha256(path: &Path) -> Option<String> {
     let mut hasher = Sha256::new();
     hasher.update(&data);
     Some(format!("{:x}", hasher.finalize()))
+}
+
+fn calculate_entropy(path: &Path) -> Option<f64> {
+    let mut buffer = Vec::new();
+    let mut file = fs::File::open(path).ok()?;
+    file.read_to_end(&mut buffer).ok()?;
+
+    let mut freq = [0usize; 256];
+    for byte in &buffer {
+        freq[*byte as usize] += 1;
+    }
+
+    let total = buffer.len() as f64;
+    if total == 0.0 {
+        return None;
+    }
+
+    let entropy = freq.iter().filter(|&&c| c > 0).fold(0.0, |acc, &count|{
+        let p = count as f64/total;
+        acc - p * p.log2()
+    });
+
+    Some(entropy)
 }
 
 pub fn collect_file_telemetry<P: AsRef<Path>>(root: P, max_age: Duration) -> io::Result<Vec<FileInfo>> {
@@ -89,6 +114,7 @@ pub fn collect_file_telemetry<P: AsRef<Path>>(root: P, max_age: Duration) -> io:
                     last_modified: modified_time,
                     size: metadata.len(),
                     sha256: compute_sha256(path),
+                    entropy: calculate_entropy(path),
                 });
             }
         }
