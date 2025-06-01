@@ -1,4 +1,6 @@
-use sysinfo::{Pid, ProcessExt, System, SystemExt};
+use sysinfo::{Pid, PidExt, ProcessExt, System, SystemExt};
+use winapi::um::sysinfoapi::ComputerNameDnsDomain;
+use core::hash;
 use std::fs::File;
 use std::io::Read;
 use sha2::{Sha256, Digest};
@@ -34,13 +36,34 @@ pub fn get_running_process() -> Vec<ProcessInfo> {
     let mut system = System::new_all();
     system.refresh_all();
 
+    let known_lolbins = vec![
+        "rundll32.exe", "regsvr32.exe", "powershell.exe", "wmic.exe", "certutil.exe",
+        "mshta.exe", "cmd.exe", "cscript.exe", "wscript.exe"
+    ];
+
     let mut process_list = Vec::new();
 
     for (pid, proc) in system.processes() {
         let exe_path = proc.exe().display().to_string();
         let user = get_process_user(proc);
+        let name = proc.name().to_string();
+        let hash = compute_sha256(&exe_path);
+        let is_lolbin = known_lolbins.iter().any(|&bin| bin.eq_ignore_ascii_case(proc.name()));
 
+        process_list.push(ProcessInfo {
+            pid: *pid,
+            ppid: proc.parent(),
+            name,
+            exe: exe_path,
+            status: proc.status().to_string(),
+            cpu_usage: proc.cpu_usage(),
+            memory: proc.memory(),
+            user,
+            hash,
+            is_lolbin
+        });
     }
+    process_list
 }
 
 //unix get_process_user
@@ -121,12 +144,34 @@ fn get_process_user(proc: &sysinfo::Process) -> String {
     }
 }
 
+fn compute_sha256(path: &str) -> Option<String> {
+    let mut file = File::open(path).ok()?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0; 1024];
+
+    loop {
+        let n = file.read(&mut buffer).ok()?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buffer[..n]);
+    }
+    Some(format!("{:x}", hasher.finalize()))
+}
+
 pub fn monitor_process() {
     let processes = get_running_process();
     for proc in processes {
         println!(
-            "PID: {} | Name: {} | Path: {} | Status: {} | CPU: {:.2}% | Memory: {} KB | User: {}",
-            proc.pid, proc.name, proc.exe, proc.status, proc.cpu_usage, proc.memory, proc.user
+            "PID: {:<5} | PPID: {:<5} | {:<20} | CPU: {:>5.2}% | Mem: {:>6} KB | User: {:<20} | LoLBin: {:<5} | Hash: {}",
+            proc.pid,
+            proc.ppid.map_or(0, |ppid| ppid.as_u32()),
+            proc.name,
+            proc.cpu_usage,
+            proc.memory,
+            proc.user,
+            proc.is_lolbin,
+            proc.hash.unwrap_or_else(|| "N/A".to_string())
         );
     }
 }

@@ -21,3 +21,4 @@ windows = { version = "0.52", features = [
 ] }
 winreg = "0.10"
 yara = "0.14"
+rayon = "1.8"
